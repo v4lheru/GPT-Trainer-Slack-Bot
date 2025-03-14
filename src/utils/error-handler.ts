@@ -1,58 +1,39 @@
 /**
- * Error Handler
+ * Error Handler Utility
  * 
- * This module provides centralized error handling for the application.
- * It defines custom error types, error handling utilities, and error reporting.
+ * This module provides error handling utilities for the application.
+ * It defines custom error types and error handling functions.
  */
 
 import { logger, logEmoji } from './logger';
 
 /**
- * Custom error types
- */
-export enum ErrorType {
-    VALIDATION = 'VALIDATION_ERROR',
-    AUTHENTICATION = 'AUTHENTICATION_ERROR',
-    AUTHORIZATION = 'AUTHORIZATION_ERROR',
-    NOT_FOUND = 'NOT_FOUND_ERROR',
-    RATE_LIMIT = 'RATE_LIMIT_ERROR',
-    TIMEOUT = 'TIMEOUT_ERROR',
-    EXTERNAL_API = 'EXTERNAL_API_ERROR',
-    INTERNAL = 'INTERNAL_ERROR',
-    UNKNOWN = 'UNKNOWN_ERROR',
-}
-
-/**
- * Custom application error
+ * Base application error class
  */
 export class AppError extends Error {
-    public readonly type: ErrorType;
+    public readonly code: string;
     public readonly statusCode: number;
     public readonly isOperational: boolean;
-    public readonly context?: Record<string, any>;
 
     /**
      * Create a new application error
      * 
      * @param message Error message
-     * @param type Error type
+     * @param code Error code
      * @param statusCode HTTP status code
      * @param isOperational Whether the error is operational
-     * @param context Additional context for the error
      */
     constructor(
         message: string,
-        type: ErrorType = ErrorType.UNKNOWN,
+        code: string = 'INTERNAL_ERROR',
         statusCode: number = 500,
-        isOperational: boolean = true,
-        context?: Record<string, any>
+        isOperational: boolean = true
     ) {
         super(message);
         this.name = this.constructor.name;
-        this.type = type;
+        this.code = code;
         this.statusCode = statusCode;
         this.isOperational = isOperational;
-        this.context = context;
 
         // Capture stack trace
         Error.captureStackTrace(this, this.constructor);
@@ -60,195 +41,179 @@ export class AppError extends Error {
 }
 
 /**
- * Validation error
+ * API error class for errors from external APIs
+ */
+export class APIError extends AppError {
+    public readonly source: string;
+    public readonly originalError: any;
+
+    /**
+     * Create a new API error
+     * 
+     * @param message Error message
+     * @param source API source
+     * @param originalError Original error
+     * @param code Error code
+     * @param statusCode HTTP status code
+     */
+    constructor(
+        message: string,
+        source: string,
+        originalError: any,
+        code: string = 'API_ERROR',
+        statusCode: number = 500
+    ) {
+        super(message, code, statusCode, true);
+        this.source = source;
+        this.originalError = originalError;
+    }
+}
+
+/**
+ * Slack API error class
+ */
+export class SlackAPIError extends APIError {
+    /**
+     * Create a new Slack API error
+     * 
+     * @param message Error message
+     * @param originalError Original error
+     * @param code Error code
+     * @param statusCode HTTP status code
+     */
+    constructor(
+        message: string,
+        originalError: any,
+        code: string = 'SLACK_API_ERROR',
+        statusCode: number = 500
+    ) {
+        super(message, 'Slack API', originalError, code, statusCode);
+    }
+}
+
+/**
+ * GPT-trainer API error class
+ */
+export class GPTTrainerAPIError extends APIError {
+    /**
+     * Create a new GPT-trainer API error
+     * 
+     * @param message Error message
+     * @param originalError Original error
+     * @param code Error code
+     * @param statusCode HTTP status code
+     */
+    constructor(
+        message: string,
+        originalError: any,
+        code: string = 'GPT_TRAINER_API_ERROR',
+        statusCode: number = 500
+    ) {
+        super(message, 'GPT-trainer API', originalError, code, statusCode);
+    }
+}
+
+/**
+ * Validation error class
  */
 export class ValidationError extends AppError {
-    constructor(message: string, context?: Record<string, any>) {
-        super(message, ErrorType.VALIDATION, 400, true, context);
+    public readonly field?: string;
+
+    /**
+     * Create a new validation error
+     * 
+     * @param message Error message
+     * @param field Optional field name
+     */
+    constructor(message: string, field?: string) {
+        super(message, 'VALIDATION_ERROR', 400, true);
+        this.field = field;
     }
 }
 
 /**
- * Authentication error
+ * Configuration error class
  */
-export class AuthenticationError extends AppError {
-    constructor(message: string, context?: Record<string, any>) {
-        super(message, ErrorType.AUTHENTICATION, 401, true, context);
+export class ConfigurationError extends AppError {
+    /**
+     * Create a new configuration error
+     * 
+     * @param message Error message
+     */
+    constructor(message: string) {
+        super(message, 'CONFIGURATION_ERROR', 500, true);
     }
 }
 
 /**
- * Authorization error
- */
-export class AuthorizationError extends AppError {
-    constructor(message: string, context?: Record<string, any>) {
-        super(message, ErrorType.AUTHORIZATION, 403, true, context);
-    }
-}
-
-/**
- * Not found error
- */
-export class NotFoundError extends AppError {
-    constructor(message: string, context?: Record<string, any>) {
-        super(message, ErrorType.NOT_FOUND, 404, true, context);
-    }
-}
-
-/**
- * Rate limit error
- */
-export class RateLimitError extends AppError {
-    constructor(message: string, context?: Record<string, any>) {
-        super(message, ErrorType.RATE_LIMIT, 429, true, context);
-    }
-}
-
-/**
- * Timeout error
- */
-export class TimeoutError extends AppError {
-    constructor(message: string, context?: Record<string, any>) {
-        super(message, ErrorType.TIMEOUT, 408, true, context);
-    }
-}
-
-/**
- * External API error
- */
-export class ExternalApiError extends AppError {
-    constructor(message: string, context?: Record<string, any>) {
-        super(message, ErrorType.EXTERNAL_API, 502, true, context);
-    }
-}
-
-/**
- * Internal error
- */
-export class InternalError extends AppError {
-    constructor(message: string, context?: Record<string, any>) {
-        super(message, ErrorType.INTERNAL, 500, false, context);
-    }
-}
-
-/**
- * Handle an error
+ * Global error handler
  * 
- * @param error The error to handle
- * @param source The source of the error
- * @returns Formatted error object
+ * @param error Error to handle
  */
-export function handleError(error: any, source: string = 'app'): Record<string, any> {
-    try {
-        // If the error is already an AppError, use it directly
-        if (error instanceof AppError) {
-            logError(error, source);
-            return formatError(error);
-        }
-
-        // If the error is from an external API, wrap it in an ExternalApiError
-        if (source.includes('api') || source.includes('external')) {
-            const apiError = new ExternalApiError(
-                error.message || 'External API error',
-                { originalError: error }
-            );
-            logError(apiError, source);
-            return formatError(apiError);
-        }
-
-        // Otherwise, wrap it in an InternalError
-        const internalError = new InternalError(
-            error.message || 'Internal server error',
-            { originalError: error }
-        );
-        logError(internalError, source);
-        return formatError(internalError);
-    } catch (e) {
-        // If error handling itself fails, log and return a generic error
-        logger.error(`${logEmoji.error} Error in error handler`, { error: e });
-        return {
-            error: {
-                type: ErrorType.UNKNOWN,
-                message: 'An unknown error occurred',
-                statusCode: 500,
-            },
-        };
-    }
-}
-
-/**
- * Log an error
- * 
- * @param error The error to log
- * @param source The source of the error
- */
-export function logError(error: AppError | Error, source: string = 'app'): void {
-    const errorContext = error instanceof AppError ? error.context : undefined;
-    const errorType = error instanceof AppError ? error.type : ErrorType.UNKNOWN;
-    const statusCode = error instanceof AppError ? error.statusCode : 500;
-    const isOperational = error instanceof AppError ? error.isOperational : false;
-
-    logger.error(`${logEmoji.error} [${source}] ${error.message}`, {
-        errorType,
-        statusCode,
-        isOperational,
-        stack: error.stack,
-        ...errorContext,
-    });
-}
-
-/**
- * Format an error for response
- * 
- * @param error The error to format
- * @returns Formatted error object
- */
-export function formatError(error: AppError): Record<string, any> {
-    return {
-        error: {
-            type: error.type,
-            message: error.message,
+export function handleError(error: Error): void {
+    // Log the error
+    if (error instanceof AppError) {
+        logger.error(`${logEmoji.error} ${error.name}: ${error.message}`, {
+            code: error.code,
             statusCode: error.statusCode,
-            ...(error.context ? { context: error.context } : {}),
-        },
-    };
+            isOperational: error.isOperational,
+            stack: error.stack,
+        });
+    } else {
+        logger.error(`${logEmoji.error} Unhandled Error: ${error.message}`, {
+            stack: error.stack,
+        });
+    }
+
+    // If the error is not operational, crash the application
+    if (error instanceof AppError && !error.isOperational) {
+        logger.error(`${logEmoji.error} Non-operational error. Exiting...`);
+        process.exit(1);
+    }
 }
 
 /**
- * Create a user-friendly error message
+ * Format an error for user display
  * 
- * @param error The error to format
+ * @param error Error to format
  * @returns User-friendly error message
  */
-export function getUserFriendlyErrorMessage(error: AppError | Error): string {
-    if (error instanceof ValidationError) {
+export function formatErrorForUser(error: Error): string {
+    if (error instanceof APIError) {
+        return `There was an error communicating with the ${error.source}. Please try again later.`;
+    } else if (error instanceof ValidationError) {
         return `Invalid input: ${error.message}`;
+    } else if (error instanceof ConfigurationError) {
+        return 'There is a configuration issue with the application. Please contact support.';
+    } else {
+        return 'An unexpected error occurred. Please try again later.';
     }
+}
 
-    if (error instanceof AuthenticationError) {
-        return 'Authentication failed. Please sign in again.';
-    }
+/**
+ * Get a user-friendly error message (alias for formatErrorForUser)
+ * 
+ * @param error Error to format
+ * @returns User-friendly error message
+ */
+export function getUserFriendlyErrorMessage(error: Error): string {
+    return formatErrorForUser(error);
+}
 
-    if (error instanceof AuthorizationError) {
-        return 'You do not have permission to perform this action.';
-    }
+/**
+ * Set up global error handlers
+ */
+export function setupGlobalErrorHandlers(): void {
+    // Handle uncaught exceptions
+    process.on('uncaughtException', (error) => {
+        logger.error(`${logEmoji.error} Uncaught Exception:`, { error });
+        process.exit(1);
+    });
 
-    if (error instanceof NotFoundError) {
-        return `Not found: ${error.message}`;
-    }
+    // Handle unhandled promise rejections
+    process.on('unhandledRejection', (reason, promise) => {
+        logger.error(`${logEmoji.error} Unhandled Rejection:`, { reason, promise });
+    });
 
-    if (error instanceof RateLimitError) {
-        return 'Too many requests. Please try again later.';
-    }
-
-    if (error instanceof TimeoutError) {
-        return 'The request timed out. Please try again.';
-    }
-
-    if (error instanceof ExternalApiError) {
-        return 'There was an error communicating with an external service. Please try again later.';
-    }
-
-    // For internal errors or unknown errors, don't expose details
-    return 'Something went wrong. Please try again later.';
+    logger.info(`${logEmoji.info} Global error handlers set up`);
 }

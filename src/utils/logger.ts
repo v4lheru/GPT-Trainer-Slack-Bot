@@ -1,8 +1,8 @@
 /**
  * Logger Utility
  * 
- * This module provides a centralized logging service using Winston.
- * It configures different log formats and transports based on the environment.
+ * This module provides a centralized logging utility for the application.
+ * It uses Winston for structured logging with different levels and formats.
  */
 
 import winston from 'winston';
@@ -23,71 +23,55 @@ const colors = {
     debug: 'blue',
 };
 
-// Add colors to winston
+// Add colors to Winston
 winston.addColors(colors);
 
-// Create format for console output
-const consoleFormat = winston.format.combine(
-    winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
-    winston.format.colorize({ all: true }),
-    winston.format.printf(
-        (info: any) => `${info.timestamp} ${info.level}: ${info.message}${info.splat !== undefined ? `${info.splat}` : ''
-            }${info.error ? `\n${info.error.stack}` : ''
-            }`
-    )
-);
-
-// Create format for file output (if needed)
-const fileFormat = winston.format.combine(
-    winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
-    winston.format.json()
-);
-
-// Determine log level from environment
-const logLevel = process.env.LOG_LEVEL || 'info';
-
-// Create the logger instance
+// Create the logger
 export const logger = winston.createLogger({
-    level: logLevel,
     levels,
-    format: fileFormat,
+    format: winston.format.combine(
+        winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+        winston.format.errors({ stack: true }),
+        winston.format.splat(),
+        winston.format.json()
+    ),
+    defaultMeta: { service: 'gpt-trainer-slack-bot' },
     transports: [
         // Console transport
         new winston.transports.Console({
-            format: consoleFormat,
+            format: winston.format.combine(
+                winston.format.colorize({ all: true }),
+                winston.format.printf(
+                    (info) => `${info.timestamp} ${info.level}: ${info.message}${info.stack ? `\n${info.stack}` : ''}`
+                )
+            ),
         }),
-        // Uncomment to add file logging if needed
-        // new winston.transports.File({
-        //     filename: 'logs/error.log',
-        //     level: 'error',
-        // }),
-        // new winston.transports.File({
-        //     filename: 'logs/combined.log',
-        // }),
+        // File transport for errors
+        new winston.transports.File({
+            filename: 'logs/error.log',
+            level: 'error',
+        }),
+        // File transport for all logs
+        new winston.transports.File({
+            filename: 'logs/combined.log',
+        }),
     ],
-    exitOnError: false,
 });
 
-// Export a stream object for Morgan (if used with Express)
-export const stream = {
-    write: (message: string) => {
-        logger.info(message.trim());
-    },
-};
+// Set log level based on environment
+logger.level = process.env.LOG_LEVEL || 'info';
 
-// Helper function to log errors with stack traces
-export const logError = (message: string, error: Error): void => {
-    logger.error(message, { error });
-};
-
-// Add emojis to make logs more readable
+// Log emojis for different log types
 export const logEmoji = {
-    success: '✅',
-    error: '❌',
-    warning: '⚠️',
-    info: 'ℹ️',
+    info: '📝',
     debug: '🔍',
-    slack: '🤖',
-    ai: '🧠',
-    mcp: '🔌',
+    warn: '⚠️',
+    error: '❌',
+    slack: '💬',
+    ai: '🤖',
+    success: '✅',
+    warning: '⚠️',
 };
+
+// Export the logger
+export default logger;

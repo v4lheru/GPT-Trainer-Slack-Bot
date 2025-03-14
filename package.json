@@ -1,5 +1,5 @@
 {
-  "name": "multi-provider-ai-slack-bot",
+  "name": "gpt-trainer-slack-bot",
   "version": "1.0.0",
   "main": "dist/index.js",
   "scripts": {
@@ -12,12 +12,11 @@
     "slack",
     "bot",
     "ai",
-    "openrouter",
-    "mcp"
+    "gpt-trainer"
   ],
   "author": "",
-  "license": "ISC",
-  "description": "A Slack bot that leverages OpenRouter AI and MCP integration",
+  "license": "MIT",
+  "description": "A Slack bot that integrates with the GPT-trainer API",
   "dependencies": {
     "@slack/bolt": "^4.2.1",
     "axios": "^1.8.3",

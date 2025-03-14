@@ -33,7 +33,7 @@ export function registerMiddleware(app: App): void {
         logger.error(`${logEmoji.error} Slack error: ${error.message}`, { error });
 
         // Handle the error
-        handleError(error, 'slack');
+        handleError(error);
     });
 
     // Add action handling middleware for feedback buttons

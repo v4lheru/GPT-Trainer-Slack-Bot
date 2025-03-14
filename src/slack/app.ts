@@ -8,11 +8,14 @@
 import { App, LogLevel } from '@slack/bolt';
 import { logger, logEmoji } from '../utils/logger';
 import { env } from '../config/environment';
-import { registerMiddleware } from './middleware';
-import { SLACK_CONFIG } from '../config/constants';
+import { SlackClient } from '../api/slack';
 
-// Map Winston log levels to Bolt log levels
-const getBoltLogLevel = (): LogLevel => {
+/**
+ * Map Winston log levels to Bolt log levels
+ * 
+ * @returns Bolt log level
+ */
+function getBoltLogLevel(): LogLevel {
     switch (env.LOG_LEVEL) {
         case 'debug':
             return LogLevel.DEBUG;
@@ -25,9 +28,11 @@ const getBoltLogLevel = (): LogLevel => {
         default:
             return LogLevel.INFO;
     }
-};
+}
 
-// Create and configure the Slack app
+/**
+ * Create and configure the Slack app
+ */
 export const app = new App({
     token: env.SLACK_BOT_TOKEN,
     signingSecret: env.SLACK_SIGNING_SECRET,
@@ -55,44 +60,59 @@ export const app = new App({
     ],
 });
 
-// Initialize the app
-function initializeApp() {
+/**
+ * Create a Slack client instance
+ */
+export const slackClient = new SlackClient(app);
+
+/**
+ * Initialize the Slack app
+ */
+export function initializeSlackApp(): void {
+    logger.info(`${logEmoji.slack} Initializing Slack app...`);
+
+    // Register middleware
+    app.use(async ({ next }) => {
+        // Log all incoming requests
+        logger.debug(`${logEmoji.slack} Received Slack event`);
+        await next();
+    });
+
+    // Error middleware
+    app.error(async (error) => {
+        logger.error(`${logEmoji.error} Slack app error:`, { error });
+    });
+
+    logger.info(`${logEmoji.slack} Slack app initialized successfully`);
+}
+
+/**
+ * Start the Slack app
+ * 
+ * @param port Port to listen on
+ * @returns Promise resolving when the app is started
+ */
+export async function startSlackApp(port: number = env.PORT): Promise<void> {
     try {
-        // Register middleware
-        registerMiddleware(app);
-
-        // Import event handlers
-        require('./events');
-
-        // Store the original start method
-        const originalStart = app.start.bind(app);
-
-        // Create a new start method that logs when the app starts
-        app.start = async function () {
-            try {
-                // Call the original start method
-                const server = await originalStart();
-
-                // Log that the app is running
-                logger.info(`${logEmoji.slack} Slack Bolt app is running!`);
-
-                // Return the server
-                return server;
-            } catch (error) {
-                logger.error(`${logEmoji.error} Failed to start Slack Bolt app`, { error });
-                throw error;
-            }
-        };
-
-        logger.info(`${logEmoji.slack} Slack app initialized successfully`);
+        await app.start(port);
+        logger.info(`${logEmoji.slack} Slack app is running on port ${port}`);
     } catch (error) {
-        logger.error(`${logEmoji.error} Failed to initialize Slack app`, { error });
+        logger.error(`${logEmoji.error} Failed to start Slack app:`, { error });
         throw error;
     }
 }
 
-// Initialize the app
-initializeApp();
-
-// Export the initialized app
-export default app;
+/**
+ * Stop the Slack app
+ * 
+ * @returns Promise resolving when the app is stopped
+ */
+export async function stopSlackApp(): Promise<void> {
+    try {
+        await app.stop();
+        logger.info(`${logEmoji.slack} Slack app stopped`);
+    } catch (error) {
+        logger.error(`${logEmoji.error} Failed to stop Slack app:`, { error });
+        throw error;
+    }
+}

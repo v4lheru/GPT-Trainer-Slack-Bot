@@ -1,86 +1,53 @@
-# Synaptic Slack Bot v2 - Multi-Provider AI Slack Bot
+# GPT-trainer Slack Bot
 
 ## Project Overview
 
-Synaptic Slack Bot v2 is an intelligent Slack bot that connects your team's conversations with powerful AI capabilities. It serves as a bridge between your Slack workspace and various AI models, allowing seamless access to AI assistance without leaving your communication platform.
+GPT-trainer Slack Bot is an intelligent Slack bot that connects your team's conversations with the powerful GPT-trainer AI capabilities. It serves as a bridge between your Slack workspace and GPT-trainer, allowing seamless access to AI assistance without leaving your communication platform.
 
-The bot leverages OpenRouter as a gateway to multiple AI service providers (including OpenAI, Anthropic, and others) and can make function calls to an MCP (Mission Control Platform) server to perform custom actions based on user requests.
-
-## What's New in v2
-
-Version 2 of Synaptic Slack Bot v2 introduces significant enhancements:
-
-- **Expanded Slack Permissions**: Utilizes a comprehensive set of Slack permissions to perform a wide range of actions
-- **Modular Feature Architecture**: Organized features into separate modules for better maintainability
-- **Enhanced Conversational Experience**: Improved response handling for both action requests and conversational queries
-- **Intelligent Response Formatting**: Automatically determines when to use function calls vs. direct responses
-- **User-Friendly Action Responses**: Provides clear, conversational confirmations when actions are performed
-
-### New Slack Capabilities
-
-The bot now supports:
-- Creating and managing channels
-- Sending messages to channels and users
-- Uploading and managing files
-- Adding reactions to messages
-- Setting reminders
-- And more!
-
-## Why Synaptic Slack Bot v2?
-
-Traditional AI assistants often require users to switch contexts, leaving their workflow to access AI capabilities. Synaptic Slack Bot v2 brings AI directly into your team's communication flow, enabling:
-
-- **Instant AI assistance** within Slack threads and channels
-- **Consistent AI access** across the organization with shared context
-- **Custom actions** through function calling to integrate with your tools
-- **Flexible model selection** to optimize for cost, speed, or capabilities
-
-## Use Cases
-
-- **Workspace Management**: Create channels, invite users, and manage Slack workspace directly
-- **Knowledge Base Queries**: Ask questions about company documentation, policies, or technical information
-- **Content Generation**: Create drafts, summaries, or creative content directly in Slack
-- **Data Analysis**: Request analysis of data shared in conversations
-- **Custom Workflows**: Trigger specific actions in your systems through function calling
-- **Meeting Summaries**: Generate concise summaries of meeting transcripts shared in Slack
-- **Code Assistance**: Get help with coding problems or generate code snippets
+The bot integrates directly with the GPT-trainer API, enabling your team to interact with your custom-trained AI models directly from Slack. It maintains conversation context through sessions, allowing for natural, multi-turn interactions.
 
 ## Features
 
-- Integration with Slack's API using Bolt framework
-- Support for multiple AI providers through OpenRouter
-- Function calling capabilities with MCP server
-- Conversation context management for coherent multi-turn interactions
-- Rich message formatting with Block Kit
-- Comprehensive error handling and logging
-- Configurable model selection based on task requirements
+- **Seamless Slack Integration**: Fully integrated with Slack's messaging platform
+- **Custom AI Responses**: Leverages your GPT-trainer chatbots for domain-specific knowledge
+- **Persistent Sessions**: Maintains conversation context for coherent multi-turn interactions
+- **Thread Support**: Works in threads for organized conversations
+- **Direct Message Support**: Available in DMs for private assistance
+- **Mention Support**: Can be mentioned in channels to provide assistance
+- **Error Handling**: Robust error handling and recovery
+- **Logging**: Comprehensive logging for monitoring and debugging
+- **Streaming Support**: Uses GPT-trainer's streaming API for faster responses
+- **Fallback Mechanisms**: Gracefully handles API errors with informative messages
 
 ## Technical Architecture
 
-Synaptic Slack Bot v2 is built with a modular architecture that separates concerns and allows for easy extension:
+GPT-trainer Slack Bot is built with a modular architecture that separates concerns and allows for easy extension:
 
 1. **Slack Integration Layer**: Handles all communication with the Slack API
-2. **Feature Modules**: Implements specific Slack capabilities (channels, messages, files, etc.)
-3. **AI Provider Layer**: Manages connections to AI services through OpenRouter
-4. **AI Actions Layer**: Provides a "brains" layer for understanding and executing user requests
-5. **Context Management**: Maintains conversation history for coherent interactions
-6. **Function Calling System**: Enables the AI to trigger specific actions in your systems
-7. **Configuration Layer**: Provides flexible configuration options
+2. **GPT-trainer API Client**: Manages connections to the GPT-trainer service
+   - Supports both streaming and non-streaming endpoints
+   - Implements fallback mechanisms for API errors
+   - Handles session creation and message sending
+3. **Session Management**: Maintains user sessions for conversation continuity
+   - Maps Slack user IDs to GPT-trainer session UUIDs
+   - Handles session cleanup for inactive conversations
+4. **Configuration Layer**: Provides flexible configuration options
+   - Environment-based configuration
+   - Constants for application-wide settings
 
 ## Prerequisites
 
 - Node.js 16+ installed
 - npm 7+ installed
 - Slack workspace with admin access
-- OpenRouter API key ([Get one here](https://openrouter.ai/))
-- MCP server access (optional, for custom function calling)
+- GPT-trainer API key and chatbot UUID
 
 ## Installation
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/v4lheru/Synaptic-Slack-Bot.git
-   cd Synaptic-Slack-Bot
+   git clone https://github.com/v4lheru/GPT-Trainer-Slack-Bot.git
+   cd GPT-Trainer-Slack-Bot
    ```
 
 2. Install dependencies:
@@ -88,23 +55,25 @@ Synaptic Slack Bot v2 is built with a modular architecture that separates concer
    npm install
    ```
 
-3. Create a `.env` file with the required environment variables:
+3. Create a `.env` file with the required environment variables (see `.env.example` for reference):
    ```
-   # Slack Credentials
-   SLACK_BOT_TOKEN=xoxb-your-token
+   # Node environment
+   NODE_ENV=development
+   PORT=3000
+
+   # Slack configuration
+   SLACK_BOT_TOKEN=xoxb-your-bot-token
    SLACK_SIGNING_SECRET=your-signing-secret
    SLACK_APP_TOKEN=xapp-your-app-token
 
-   # OpenRouter API Key
-   OPENROUTER_API_KEY=your-openrouter-key
+   # GPT-trainer configuration
+   GPT_TRAINER_API_KEY=your-gpt-trainer-api-key
+   GPT_TRAINER_CHATBOT_UUID=your-chatbot-uuid
+   GPT_TRAINER_API_URL=https://app.gpt-trainer.com
 
-   # MCP Configuration
-   MCP_SERVER_URL=your-mcp-server-url
-   MCP_AUTH_TOKEN=your-mcp-auth-token
-
-   # App Configuration
-   NODE_ENV=development
-   LOG_LEVEL=debug
+   # Application configuration
+   LOG_LEVEL=info
+   SESSION_CLEANUP_INTERVAL=3600000
    ```
 
 ## Running the Bot
@@ -143,74 +112,83 @@ To deploy on Railway:
 ## Project Structure
 
 ```
-src/
-├── index.ts                # Main entry point
-├── ai/                     # AI provider implementations
-│   ├── actions/            # AI action layer for executing requests
-│   ├── interfaces/         # Common interfaces
-│   ├── openrouter/         # OpenRouter implementation
-│   └── context/            # Conversation context management
-├── slack/                  # Slack integration
-│   ├── app.ts              # Slack app configuration
-│   ├── events/             # Event handlers
-│   ├── features/           # Feature modules (channels, messages, etc.)
-│   ├── middleware/         # Middleware functions
-│   └── utils/              # Slack utilities
-├── mcp/                    # MCP integration
-│   ├── client.ts           # MCP client
-│   ├── auth.ts             # Authentication
-│   ├── slack-functions.ts  # Slack-specific function definitions
-│   └── function-calling.ts # Function calling
-├── config/                 # Configuration
-│   ├── environment.ts      # Environment variables
-│   └── constants.ts        # Application constants
-└── utils/                  # Shared utilities
-    ├── logger.ts           # Logging
-    └── error-handler.ts    # Error handling
+/
+├── src/
+│   ├── config/           # Configuration management
+│   │   ├── constants.ts  # Application constants
+│   │   └── environment.ts # Environment variables
+│   ├── api/              # API client definitions
+│   │   ├── slack.ts      # Slack API client
+│   │   └── gpt-trainer.ts # GPT-trainer API client
+│   ├── services/         # Business logic
+│   │   └── session.ts    # Session management service
+│   ├── types/            # TypeScript interfaces and types
+│   │   ├── slack.ts      # Slack types
+│   │   └── gpt-trainer.ts # GPT-trainer types
+│   ├── utils/            # Utility functions
+│   │   ├── logger.ts     # Logging utility
+│   │   └── error-handler.ts # Error handling
+│   ├── slack/            # Slack integration
+│   │   ├── app.ts        # Slack app configuration
+│   │   └── events/       # Event handlers
+│   └── index.ts          # Application entry point
+├── tsconfig.json         # TypeScript configuration
+├── package.json          # Dependencies and scripts
+└── .env.example          # Environment variable template
 ```
 
 ## Interacting with the Bot
 
-Once deployed, you can interact with Synaptic Slack Bot v2 in several ways:
+Once deployed, you can interact with GPT-trainer Slack Bot in several ways:
 
 1. **Direct Messages**: Send a DM to the bot for private conversations
-2. **Mentions**: Mention the bot in a channel using `@Synaptic Slack Bot v2`
+2. **Mentions**: Mention the bot in a channel using `@GPT-trainer`
 3. **Threads**: The bot can participate in conversation threads
 
 Example interactions:
 
-- `@Synaptic Slack Bot v2 create a channel called project-discussion`
-- `@Synaptic Slack Bot v2 send a message to #general saying Hello everyone!`
-- `@Synaptic Slack Bot v2 write a haiku about Slack`
-- `@Synaptic Slack Bot v2 add a thumbs-up reaction to the last message`
-- `@Synaptic Slack Bot v2 set a reminder for @user to review the PR in 2 hours`
+- `@GPT-trainer What is the company policy on remote work?`
+- `@GPT-trainer Can you explain how our product works?`
+- `@GPT-trainer Help me draft an email to a client`
+
+The bot will maintain context throughout the conversation, allowing for natural follow-up questions and multi-turn interactions.
+
+## GPT-trainer API Integration
+
+The bot integrates with the GPT-trainer API using the following endpoints:
+
+1. **Create Session**: `https://app.gpt-trainer.com/api/v1/chatbot/{chatbot_uuid}/session/create`
+   - Creates a new session for a user
+   - Returns a session UUID for subsequent messages
+
+2. **Send Message (Streaming)**: `https://app.gpt-trainer.com/api/v1/session/{session_uuid}/message/stream`
+   - Sends a user message to the GPT-trainer API
+   - Returns the AI response as a string
+
+The integration includes robust error handling and fallback mechanisms to ensure reliable operation even when API issues occur.
 
 ## Extending Functionality
 
-Synaptic Slack Bot v2 is designed to be extensible. You can:
+GPT-trainer Slack Bot is designed to be extensible. You can:
 
-1. **Add Custom Functions**: Extend the function calling system to add new capabilities
-2. **Integrate New AI Providers**: Add support for additional AI providers
-3. **Customize Response Formatting**: Modify how responses are presented in Slack
-4. **Add New Feature Modules**: Implement additional Slack features
+1. **Customize Response Formatting**: Modify how responses are presented in Slack
+2. **Add New Features**: Implement additional functionality as needed
+3. **Integrate with Other Services**: Connect to other APIs or services
+4. **Enhance Session Management**: Implement database storage for persistent sessions
 
-See the `Instructions for LLM.md` file for detailed guidance on working with the AI integration.
+## Troubleshooting
+
+If you encounter issues with the GPT-trainer API integration:
+
+1. **Check API Credentials**: Ensure your API key and chatbot UUID are correct
+2. **Verify API Endpoints**: The bot uses the streaming endpoint by default
+3. **Check Logs**: Examine the logs for detailed error information
+4. **Test API Directly**: Use the included test script (`test-gpt-trainer.js`) to test the API directly
 
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
-## Testing
-
-```bash
-npm test
-```
-
 ## License
 
 MIT
-
-## Acknowledgments
-
-- [OpenRouter](https://openrouter.ai/) for providing access to multiple AI models
-- [Slack Bolt Framework](https://slack.dev/bolt-js/concepts) for simplifying Slack app development

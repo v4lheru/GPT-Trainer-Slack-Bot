@@ -2,20 +2,10 @@
  * Conversation Utilities
  * 
  * This module provides utilities for managing Slack conversations.
- * It includes functions for thread management, context tracking, and message formatting.
+ * It includes functions for thread management and message formatting.
  */
 
 import { App } from '@slack/bolt';
-import { ConversationMessage, MessageRole, MessageContent } from '../../ai/interfaces/provider';
-import { contextManager } from '../../ai/context/manager';
-import {
-    createSystemMessage,
-    createUserMessage,
-    createAssistantMessage,
-    createMultimodalUserMessage,
-    createTextContent,
-    createImageContent
-} from '../../ai/openrouter/formatter';
 import { logger, logEmoji } from '../../utils/logger';
 import * as blockKit from './block-kit';
 
@@ -27,6 +17,21 @@ export interface ThreadInfo {
     threadTs: string;
     userId?: string;
     botId?: string;
+}
+
+/**
+ * Message role type
+ */
+export type MessageRole = 'system' | 'user' | 'assistant' | 'function';
+
+/**
+ * Conversation message interface
+ */
+export interface ConversationMessage {
+    role: MessageRole;
+    content: string;
+    timestamp?: string;
+    name?: string;
 }
 
 /**
@@ -67,107 +72,6 @@ export function slackMessageToConversationMessage(message: any, botId?: string):
         content,
         timestamp: new Date(parseFloat(message.ts) * 1000).toISOString(),
     };
-}
-
-/**
- * Add a message to a conversation thread
- * 
- * @param threadInfo Thread information
- * @param message The conversation message to add
- * @returns The updated conversation context
- */
-export function addMessageToThread(threadInfo: ThreadInfo, message: ConversationMessage) {
-    return contextManager.addMessage(
-        threadInfo.threadTs,
-        threadInfo.channelId,
-        message
-    );
-}
-
-/**
- * Add a user message to a conversation thread
- * 
- * @param threadInfo Thread information
- * @param content The message content (text or multimodal)
- * @returns The updated conversation context
- */
-export function addUserMessageToThread(threadInfo: ThreadInfo, content: string | MessageContent[]) {
-    const message = createUserMessage(content, threadInfo.userId);
-    return addMessageToThread(threadInfo, message);
-}
-
-/**
- * Add a multimodal user message to a conversation thread
- * 
- * @param threadInfo Thread information
- * @param text The text content
- * @param imageUrls Array of image URLs
- * @returns The updated conversation context
- */
-export function addMultimodalUserMessageToThread(
-    threadInfo: ThreadInfo,
-    text: string,
-    imageUrls: string[]
-) {
-    const message = createMultimodalUserMessage(text, imageUrls, threadInfo.userId);
-    return addMessageToThread(threadInfo, message);
-}
-
-/**
- * Add an assistant message to a conversation thread
- * 
- * @param threadInfo Thread information
- * @param content The message content
- * @returns The updated conversation context
- */
-export function addAssistantMessageToThread(threadInfo: ThreadInfo, content: string) {
-    const message = createAssistantMessage(content);
-    return addMessageToThread(threadInfo, message);
-}
-
-/**
- * Update the system message for a conversation thread
- * 
- * @param threadInfo Thread information
- * @param content The system message content
- * @returns The updated conversation context
- */
-export function updateSystemMessageForThread(threadInfo: ThreadInfo, content: string) {
-    return contextManager.updateSystemMessage(
-        threadInfo.threadTs,
-        threadInfo.channelId,
-        content
-    );
-}
-
-/**
- * Clear a conversation thread
- * 
- * @param threadInfo Thread information
- * @param keepSystemMessage Whether to keep the system message
- * @returns True if the thread was cleared, false if it wasn't found
- */
-export function clearThread(threadInfo: ThreadInfo, keepSystemMessage: boolean = true) {
-    return contextManager.clearContext(
-        threadInfo.threadTs,
-        threadInfo.channelId,
-        keepSystemMessage
-    );
-}
-
-/**
- * Get conversation history for a thread
- * 
- * @param threadInfo Thread information
- * @returns The conversation messages
- */
-export function getThreadHistory(threadInfo: ThreadInfo): ConversationMessage[] {
-    const context = contextManager.getContext(
-        threadInfo.threadTs,
-        threadInfo.channelId
-    );
-
-    return context ? context.messages : [];
 }
 
 /**
@@ -235,19 +139,17 @@ export async function updateMessage(
  * @param threadInfo Thread information
  * @param content The AI response content
  * @param metadata Optional metadata to display
- * @param functionResults Optional function call results
  * @returns Promise resolving to the message timestamp
  */
 export async function sendAIResponse(
     app: App,
     threadInfo: ThreadInfo,
     content: string,
-    metadata?: Record<string, any>,
-    functionResults?: string[]
+    metadata?: Record<string, any>
 ): Promise<string> {
     try {
         // Create the message
-        const message = blockKit.aiResponseMessage(content, metadata, functionResults);
+        const message = blockKit.aiResponseMessage(content, metadata);
 
         // Send the message
         const result = await app.client.chat.postMessage({
@@ -255,9 +157,6 @@ export async function sendAIResponse(
             thread_ts: threadInfo.threadTs,
             ...message,
         });
-
-        // Add the message to the conversation context
-        addAssistantMessageToThread(threadInfo, content);
 
         logger.debug(`${logEmoji.slack} Sent AI response to thread ${threadInfo.threadTs}`);
 
@@ -276,7 +175,6 @@ export async function sendAIResponse(
  * @param thinkingMessageTs The thinking message timestamp
  * @param content The AI response content
  * @param metadata Optional metadata to display
- * @param functionResults Optional function call results
  * @returns Promise resolving to the updated message
  */
 export async function updateThinkingMessageWithAIResponse(
@@ -284,12 +182,11 @@ export async function updateThinkingMessageWithAIResponse(
     threadInfo: ThreadInfo,
     thinkingMessageTs: string,
     content: string,
-    metadata?: Record<string, any>,
-    functionResults?: string[]
+    metadata?: Record<string, any>
 ) {
     try {
         // Create the message
-        const message = blockKit.aiResponseMessage(content, metadata, functionResults);
+        const message = blockKit.aiResponseMessage(content, metadata);
 
         // Update the message
         const result = await updateMessage(
@@ -299,9 +196,6 @@ export async function updateThinkingMessageWithAIResponse(
             message.blocks,
             message.text
         );
-
-        // Add the message to the conversation context
-        addAssistantMessageToThread(threadInfo, content);
 
         logger.debug(`${logEmoji.slack} Updated thinking message with AI response in thread ${threadInfo.threadTs}`);
 
@@ -376,74 +270,6 @@ export async function fetchConversationHistory(
         return result.messages || [];
     } catch (error) {
         logger.error(`${logEmoji.error} Error fetching conversation history`, { error });
-        throw error;
-    }
-}
-
-/**
- * Initialize conversation context from Slack history
- * 
- * @param app The Slack app
- * @param threadInfo Thread information
- * @param botId The bot's user ID
- * @returns Promise resolving to the conversation context
- */
-export async function initializeContextFromHistory(
-    app: App,
-    threadInfo: ThreadInfo,
-    botId: string
-) {
-    try {
-        // Check if context already exists
-        const existingContext = contextManager.getContext(
-            threadInfo.threadTs,
-            threadInfo.channelId
-        );
-
-        if (existingContext && existingContext.messages.length > 0) {
-            logger.debug(`${logEmoji.slack} Context already exists for thread ${threadInfo.threadTs}`);
-            return existingContext;
-        }
-
-        // Fetch conversation history
-        const messages = await fetchConversationHistory(
-            app,
-            threadInfo.channelId,
-            threadInfo.threadTs
-        );
-
-        // Create a new context
-        const context = contextManager.createContext(
-            threadInfo.threadTs,
-            threadInfo.channelId,
-            threadInfo.userId
-        );
-
-        // Add messages to the context
-        for (const message of messages) {
-            // Skip messages that don't have text
-            if (!message.text) {
-                continue;
-            }
-
-            // Convert to conversation message
-            const conversationMessage = slackMessageToConversationMessage(message, botId);
-
-            // Add to context (skip the first system message)
-            if (conversationMessage.role !== 'system' || context.messages.length === 0) {
-                contextManager.addMessage(
-                    threadInfo.threadTs,
-                    threadInfo.channelId,
-                    conversationMessage
-                );
-            }
-        }
-
-        logger.debug(`${logEmoji.slack} Initialized context from history for thread ${threadInfo.threadTs}`);
-
-        return context;
-    } catch (error) {
-        logger.error(`${logEmoji.error} Error initializing context from history`, { error });
         throw error;
     }
 }
